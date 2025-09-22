@@ -14,7 +14,7 @@
         .message-container {
             opacity: 0;
             transform: translateY(20px);
-            animation: fadeInAndSlideUp 2s forwards 3.5s; /* Animación con retraso */
+            animation: fadeInAndSlideUp 2s forwards 4s; /* Retraso para que la animación de la flor termine */
         }
         @keyframes fadeInAndSlideUp {
             to {
@@ -38,25 +38,18 @@
     </div>
 
     <script>
-        // Inicializa el canvas
         const canvas = document.getElementById('flowersCanvas');
         const ctx = canvas.getContext('2d');
         let width, height;
 
-        // Configuración de las flores
         const numFlowers = 25;
         const flowers = [];
-        const flowerTypes = ['daisy', 'tulip', 'rose'];
-
-        // Configuración de las estrellas
         const numStars = 100;
         const stars = [];
 
         function resizeCanvas() {
             width = canvas.width = window.innerWidth;
             height = canvas.height = window.innerHeight;
-            
-            // Lógica para inicializar el contenido al cambiar el tamaño
             if (stars.length === 0) {
                 for (let i = 0; i < numStars; i++) {
                     stars.push({
@@ -73,15 +66,23 @@
         // Dibuja una flor en el canvas
         function drawFlower(flower) {
             ctx.save();
-            // La traducción ahora se basa en la base del tallo
             ctx.translate(flower.x, flower.y);
             ctx.rotate(flower.rotation);
             ctx.scale(flower.currentScale, flower.currentScale);
             
             // Dibuja el tallo
             ctx.beginPath();
-            ctx.strokeStyle = '#22c55e'; // Verde para el tallo
-            ctx.lineWidth = 2 / flower.currentScale; // Ajusta el ancho para que no se escale
+            if (flower.isMain) {
+                // Tallo más detallado y grueso para la flor principal
+                const gradient = ctx.createLinearGradient(0, 0, 0, -flower.stemLength);
+                gradient.addColorStop(0, '#22c55e');
+                gradient.addColorStop(1, '#15803d');
+                ctx.strokeStyle = gradient;
+                ctx.lineWidth = 5 / flower.currentScale;
+            } else {
+                ctx.strokeStyle = '#22c55e';
+                ctx.lineWidth = 2 / flower.currentScale;
+            }
             ctx.moveTo(0, 0);
             ctx.lineTo(0, -flower.stemLength);
             ctx.stroke();
@@ -89,29 +90,73 @@
             // Dibuja la flor en la punta del tallo
             ctx.translate(0, -flower.stemLength);
 
-            // Dibuja los pétalos
-            ctx.fillStyle = '#fde047'; // Amarillo para los pétalos
-            ctx.beginPath();
-            for (let i = 0; i < 6; i++) {
-                const angle = (i * Math.PI / 3);
-                ctx.ellipse(
-                    Math.cos(angle) * 10, 
-                    Math.sin(angle) * 10,
-                    15, 8, angle, 0, 2 * Math.PI
-                );
+            // Dibuja la flor principal de forma más detallada
+            if (flower.isMain) {
+                const petalProgress = flower.bloomProgress;
+                const numLayers = 3;
+                
+                // Capas de pétalos
+                for (let layer = 0; layer < numLayers; layer++) {
+                    const numPetalsInLayer = 10 + layer * 2;
+                    const baseAngle = (Math.PI / 8) * layer;
+                    const petalColor = `hsl(48, 96%, ${90 - layer * 10}%)`;
+
+                    for (let i = 0; i < numPetalsInLayer; i++) {
+                        ctx.save();
+                        const angle = (i / numPetalsInLayer) * Math.PI * 2 + baseAngle;
+                        ctx.rotate(angle);
+
+                        // Curva de Bézier para la forma del pétalo
+                        ctx.beginPath();
+                        ctx.moveTo(0, 0);
+                        
+                        const petalLength = 40 * petalProgress;
+                        const controlPointOffset = 20;
+
+                        ctx.bezierCurveTo(
+                            controlPointOffset, -petalLength / 2,
+                            petalLength - controlPointOffset, -petalLength,
+                            petalLength, 0
+                        );
+                        ctx.fillStyle = petalColor;
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                }
+            } else {
+                // Dibuja las flores pequeñas con figuras geométricas
+                const numPetals = 8;
+                ctx.fillStyle = '#fde047';
+                const petalScale = flower.bloomProgress;
+
+                for (let i = 0; i < numPetals; i++) {
+                    ctx.save();
+                    const angle = (i / numPetals) * Math.PI * 2;
+                    ctx.rotate(angle);
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    
+                    ctx.bezierCurveTo(
+                        5 * petalScale, 15 * petalScale,
+                        15 * petalScale, 5 * petalScale,
+                        20 * petalScale, 0
+                    );
+                    ctx.fill();
+                    ctx.restore();
+                }
             }
-            ctx.fill();
 
             // Dibuja el centro de la flor
+            const centerSize = 5 * flower.bloomProgress;
             ctx.fillStyle = '#f59e0b'; // Naranja para el centro
             ctx.beginPath();
-            ctx.arc(0, 0, 5, 0, 2 * Math.PI);
+            ctx.arc(0, 0, centerSize, 0, 2 * Math.PI);
             ctx.fill();
 
             ctx.restore();
         }
 
-        // Lógica de crecimiento de las flores
         function updateFlowers() {
             flowers.forEach(flower => {
                 if (flower.currentScale < flower.targetScale) {
@@ -120,10 +165,15 @@
                         flower.currentScale = flower.targetScale;
                     }
                 }
+                if (flower.bloomProgress < 1) {
+                    flower.bloomProgress += flower.bloomSpeed;
+                    if (flower.bloomProgress > 1) {
+                        flower.bloomProgress = 1;
+                    }
+                }
             });
         }
 
-        // Lógica de las estrellas
         function updateStars() {
             stars.forEach(star => {
                 star.twinkle += star.twinkleSpeed;
@@ -131,12 +181,9 @@
             });
         }
 
-        // Bucle de animación principal
         function animate() {
-            // Borra el canvas
             ctx.clearRect(0, 0, width, height);
             
-            // Dibuja las estrellas
             stars.forEach(star => {
                 ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha})`;
                 ctx.beginPath();
@@ -144,7 +191,6 @@
                 ctx.fill();
             });
 
-            // Dibuja las flores
             flowers.forEach(flower => {
                 drawFlower(flower);
             });
@@ -155,24 +201,40 @@
             requestAnimationFrame(animate);
         }
 
-        // Lógica para iniciar el crecimiento de las flores
         function startFlowerGrowth() {
-            for (let i = 0; i < numFlowers; i++) {
+            // Creación de la flor principal
+            flowers.push({
+                x: width / 2,
+                y: height + 5,
+                targetScale: 1.5,
+                currentScale: 0.1,
+                growthRate: 0.003,
+                rotation: 0,
+                stemLength: height / 2,
+                bloomProgress: 0.01,
+                bloomSpeed: 0.008,
+                isMain: true
+            });
+
+            // Creación de las flores pequeñas
+            for (let i = 0; i < numFlowers - 1; i++) {
                 setTimeout(() => {
                     flowers.push({
                         x: Math.random() * width,
-                        y: height + 5, // Empieza ligeramente por debajo del borde
-                        targetScale: Math.random() * 0.8 + 0.5,
+                        y: height + 5,
+                        targetScale: Math.random() * 0.5 + 0.3,
                         currentScale: 0.1,
                         growthRate: 0.005,
                         rotation: (Math.random() - 0.5) * 0.5,
-                        stemLength: Math.random() * (height / 3) + 50
+                        stemLength: Math.random() * (height / 3) + 50,
+                        bloomProgress: 0.01,
+                        bloomSpeed: 0.015,
+                        isMain: false
                     });
-                }, i * 150); // Escalonado para un efecto de crecimiento
+                }, i * 150 + 500); // Pequeño retraso para que la flor principal comience primero
             }
         }
 
-        // Eventos
         window.addEventListener('resize', resizeCanvas);
         window.addEventListener('load', () => {
             resizeCanvas();
